@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Segédlet – párok kezelése</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Italiana&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app" class="wide">
+  <img class="deco tr" src="img/virag-jobb-fent.png" alt="">
+  <main>
+    <div style="padding-right:110px">
+      <div class="eyebrow">ESKÜVŐI SEGÉDLET</div>
+      <h1 class="disp" style="font-size:40px;line-height:1.05;margin:4px 0 0">Párok kezelése</h1>
+      <p class="small" style="margin:6px 0 0">Itt hozod létre a párok saját linkjét. Mindenki a saját linkjén, a többiektől függetlenül tölti ki a segédletet.</p>
+    </div>
+
+    <section class="card" id="kapcsolat"></section>
+
+    <section class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-weight:700">Új párok felvétele</div>
+      <label class="f">Soronként egy pár. A dátum nem kötelező (formátum: név; ÉÉÉÉ-HH-NN)
+        <textarea id="uj" rows="5" placeholder="Réka &amp; Bence; 2027-06-12&#10;Anna &amp; Máté; 2027-07-03&#10;Lili &amp; Dávid"></textarea>
+      </label>
+      <button class="btn p" id="letrehoz">Linkek létrehozása</button>
+    </section>
+
+    <section class="card" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="font-weight:700"><span id="db">0</span> pár</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn mini" id="frissit">Haladás frissítése</button>
+          <button class="btn mini" id="osszesmasol">Összes link másolása</button>
+          <button class="btn mini" id="export">Mentés fájlba</button>
+          <label class="btn mini" style="cursor:pointer">Betöltés fájlból<input type="file" id="import" accept=".json" hidden></label>
+        </div>
+      </div>
+      <div class="scroll"><table class="stack">
+        <thead><tr><th>Pár</th><th>Esküvő</th><th class="num">Haladás</th><th>Utolsó mentés</th><th>Link és üzenet</th></tr></thead>
+        <tbody id="lista"></tbody>
+      </table></div>
+      <p class="small" id="ures" style="margin:0">Még nincs felvett pár.</p>
+    </section>
+
+    <section class="card">
+      <div style="font-weight:700;margin-bottom:6px">Üzenet sablon</div>
+      <textarea id="sablon" rows="7"></textarea>
+      <p class="small" style="margin:6px 0 0">A {nev} és {link} helyére a pár neve és saját linkje kerül. A sablon ezen a gépen megjegyződik.</p>
+    </section>
+  </main>
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="config.js"></script>
+<script src="kerdesek.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

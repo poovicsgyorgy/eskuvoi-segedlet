@@ -1,0 +1,44 @@
+rules_version = '2';
+// Esküvői segédlet – Firestore biztonsági szabályok
+// Másold be: Firebase konzol → Firestore Database → Rules → Publish.
+// Ha más e-mail-címmel lépsz be adminként, írd át lent az ADMIN címet.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'eskuvo.popovicsgyorgy@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function isMember() {
+      return request.auth != null && request.auth.uid in resource.data.tagok;
+    }
+
+    match /parok/{kod} {
+      // Olvasni a ceremóniamester és a pár belépett tagjai tudják.
+      allow read: if isAdmin() || isMember();
+
+      // Párt létrehozni és törölni csak a ceremóniamester tud.
+      allow create, delete: if isAdmin();
+
+      allow update: if isAdmin()
+        // A pár tagjai csak a válaszaikat és az alapadataikat írhatják.
+        || (isMember()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['valaszok', 'kesz', 'osszes', 'frissitve', 'nev', 'datum', 'kezdve'])
+            && request.resource.data.valaszok is map
+            && request.resource.data.nev is string && request.resource.data.nev.size() <= 80)
+        // A link első megnyitásakor legfeljebb 2 fiók csatlakozhat a párhoz,
+        // mindenki csak saját magát adhatja hozzá.
+        || (request.auth != null
+            && !(request.auth.uid in resource.data.tagok)
+            && resource.data.tagok.size() < 2
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tagok', 'tagEmailek'])
+            && request.resource.data.tagok.size() == resource.data.tagok.size() + 1
+            && request.resource.data.tagok.hasAll(resource.data.tagok)
+            && request.auth.uid in request.resource.data.tagok
+            && request.resource.data.tagEmailek.size() <= 2);
+    }
+  }
+}

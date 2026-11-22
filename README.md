@@ -1,67 +1,61 @@
 # Esküvői segédlet – Popovics György
 
-Telefonos alkalmazás a pároknak. Mindegyik pár **saját linket** kap, és a többiektől teljesen függetlenül tölti ki a segédletet. A kérdések **egyenként, sorban nyílnak meg**: a következőt csak az előző megválaszolása után látják.
+Telefonos alkalmazás a pároknak. Mindegyik pár **saját linket** kap, **belép** Google-fiókkal vagy e-mail-címmel, és a többiektől teljesen függetlenül tölti ki a segédletet. A kérdések **egyenként, sorban nyílnak meg**: a következőt csak az előző megválaszolása után látják.
 
 - **A párok oldala:** `https://poovicsgyorgy.github.io/eskuvoi-segedlet/?p=<saját kód>`
 - **A te oldalad:** `https://poovicsgyorgy.github.io/eskuvoi-segedlet/admin.html`
-- **Minta:** `https://poovicsgyorgy.github.io/eskuvoi-segedlet/?p=minta`
+- **Minta (belépés nélkül):** `https://poovicsgyorgy.github.io/eskuvoi-segedlet/?p=minta`
 
-## Hogyan küldöd ki a 20 párnak?
+## Hogyan működik?
 
-1. Nyisd meg az **admin oldalt**.
-2. Az „Új párok felvétele” mezőbe írd be a párokat, soronként egyet, pl.:
-   ```
-   Réka & Bence; 2027-06-12
-   Anna & Máté; 2027-07-03
-   ```
-3. Nyomd meg a **Linkek létrehozása** gombot. Minden pár kap egy saját, kitalálhatatlan kódot.
-4. A pár sorában az **Üzenet másolása** gomb kimásolja a kész üzenetet a linkkel. Ezt illeszd be e-mailbe, Messengerbe vagy SMS-be.
+1. Az **admin oldalon** belépsz, beírod a párokat, és mindegyik kap egy saját linket.
+2. A pár megnyitja a linket, és **belép** Google-fiókkal vagy e-mail + jelszóval. Egy linkhez **legfeljebb 2 fiók** (a pár két tagja) csatlakozhat. Ők közösen, valós időben látják ugyanazt.
+3. A válaszok azonnal mentődnek. Bármelyik telefonon vagy gépen folytathatják: ha belépnek a főoldalon, a rendszer a saját segédletükhöz viszi őket.
+4. Az admin oldalon látod mindenki haladását. A **Válaszok** gombbal megnézheted egy pár összes válaszát és jegyzetét, és letöltheted Excelbe.
 
-A párok listája az admin oldalon a böngésződben mentődik. A **Mentés fájlba** gombbal biztonsági másolatot készíthetsz róla, amit egy másik gépen a **Betöltés fájlból** gombbal tudsz visszatölteni.
+Ha egy pár rossz fiókkal lépett be, vagy új telefonszámot és e-mailt használ, a **Belépések törlése** gombbal felszabadítod a linket, és újra csatlakozhatnak. A válaszaik megmaradnak.
 
-## Hol látod a válaszokat?
+## Firebase beállítása (egyszer, kb. 10 perc)
 
-**Google Táblázat nélkül (alapállapot):** a pár válaszai az ő telefonjukon mentődnek. Az „Összesítő” oldalon egy gombnyomással e-mailt küldhetnek neked, vagy kimásolhatják az összefoglalót.
+A belépést és a mentést a Google ingyenes Firebase szolgáltatása végzi.
 
-**Google Táblázattal (ajánlott, kb. 10 perc beállítás):** minden válasz automatikusan bekerül a saját Google Táblázatodba:
-- A **„Párok”** fülön soronként egy pár látszik, a haladásával és az utolsó mentés idejével.
-- Minden párnak **saját füle** van a kérdésekkel, válaszokkal és jegyzetekkel.
-- Az admin oldalon is látod, ki hol tart.
-- A pár másik telefonon is folytathatja, ahol abbahagyta.
+1. **console.firebase.google.com** → *Projekt létrehozása* → név: `eskuvoi-segedlet` → (Analytics kikapcsolható) → Létrehozás.
+2. **Build → Authentication → Get started → Sign-in method**:
+   - **Google** → Enable → support e-mail: a tiéd → Save.
+   - **Email/Password** → az első kapcsoló (Email/Password) be → Save.
+3. **Authentication → Settings → Authorized domains → Add domain:** `poovicsgyorgy.github.io`
+4. **Build → Firestore Database → Create database** → helyszín: `eur3 (Europe)` → *production mode* → Create.
+5. **Firestore Database → Rules**: töröld ki, ami ott van, másold be a [`firestore.rules`](firestore.rules) teljes tartalmát → **Publish**.
+6. **Fogaskerék → Project settings → Your apps → `</>` (Web)** → név: `segedlet` → Register app. Másold ki a `firebaseConfig` értékeit.
+7. A GitHubon nyisd meg a [`config.js`](config.js) fájlt (ceruza ikon), és töltsd ki a `firebase: { ... }` blokkot a kapott értékekkel → **Commit changes**.
+8. Pár perc múlva nyisd meg az admin oldalt, és lépj be Google-lel az `eskuvo.popovicsgyorgy@gmail.com` fiókkal.
 
-### Google Táblázat beállítása
+Ha más e-mail-címmel szeretnél adminként belépni, írd át a `config.js` fájlban (`adminEmail`) **és** a `firestore.rules` fájlban is, majd a szabályokat töltsd fel újra (5. lépés).
 
-1. Hozz létre egy új Google Táblázatot (pl. „Esküvői segédlet – válaszok”).
-2. A táblázatban: **Bővítmények → Apps Script**.
-3. Töröld ki, ami ott van, és másold be az [`apps-script/Code.gs`](apps-script/Code.gs) teljes tartalmát.
-4. A kód elején írd át az `ADMIN_KULCS` értékét egy csak általad ismert jelszóra. Ezt fogod beírni az admin oldalon.
-5. **Mentés** (floppy ikon), majd jobb fent **Telepítés → Új telepítés**:
-   - Típus (fogaskerék): **Webalkalmazás**
-   - Végrehajtás mint: **Én**
-   - Hozzáférés: **Bárki**
-   - **Telepítés**, majd engedélyezd a hozzáférést a Google-fiókoddal.
-6. Másold ki a kapott **webalkalmazás URL-t** (`https://script.google.com/macros/s/.../exec`).
-7. A GitHubon nyisd meg a [`config.js`](config.js) fájlt, kattints a ceruzára, és a `szolgaltatasUrl: ''` idézőjelei közé illeszd be az URL-t. **Commit changes**.
-8. Pár perc múlva az admin oldalon add meg a jelszót. Kész.
-
-Ha később módosítod a `Code.gs`-t: **Telepítés → Telepítések kezelése → szerkesztés → Verzió: Új verzió**, így az URL nem változik.
+**Költség:** az ingyenes (Spark) csomag bőven elég 20 párra. Bankkártyát nem kell megadni.
 
 ## Kérdések szerkesztése
 
 Az összes kérdés a [`kerdesek.js`](kerdesek.js) fájlban van, fejezetenként és részenként. A GitHubon közvetlenül szerkesztheted (ceruza ikon):
-- új kérdés: írj be egy új sort a megfelelő listába, idézőjelek közé, a végén vesszővel;
+- új kérdés: új sor a megfelelő listában, idézőjelek között, a végén vesszővel;
 - tipp: a rész `tipp:` sora jelenik meg „György tanácsa” címmel.
 
 A párok már megadott válaszai megmaradnak. Egy kérdés **szövegének átírásakor** viszont az a kérdés újként nyílik meg nekik.
 
-## Beállítások
+## Beállítások ([`config.js`](config.js))
 
-A [`config.js`](config.js) fájlban:
-- `email`: ide mennek a párok e-mailjei;
-- `fejezetekSorban`: `true` esetén a következő fejezet is csak az előző befejezése után nyílik meg.
+- `email`: a párok „Kérdezz” és „E-mail küldése” gombja ide ír;
+- `fejezetekSorban`: `true` esetén a következő fejezet is csak az előző befejezése után nyílik meg;
+- `firebase`: belépés és központi mentés (lásd fent). Ha üres, az alkalmazás belépés nélkül működik: a válaszok csak a pár telefonján mentődnek.
 
 ## Adatvédelem
 
-- A párok linkjei véletlenszerű kódot tartalmaznak, ezeket nem lehet kitalálni. Mindenki csak a sajátját látja.
-- Google Táblázat nélkül a válaszok csak a pár telefonján vannak.
-- Google Táblázattal a válaszok a te Google-fiókodban vannak. A párok listáját csak a jelszóval lehet lekérni.
+- A párok linkjei véletlenszerű, kitalálhatatlan kódot tartalmaznak.
+- Egy pár adatait csak a hozzá csatlakozott (legfeljebb 2) fiók és a ceremóniamester láthatja. Ezt a Firestore biztonsági szabályai a szerver oldalon garantálják.
+- Az adatok a te Firebase-projektedben, európai szerveren vannak.
+
+---
+
+### Régi, opcionális mód: Google Táblázat (Firebase helyett)
+
+Ha nem szeretnél belépést, a válaszokat egy Google Táblázatba is gyűjtheted: az [`apps-script/Code.gs`](apps-script/Code.gs) kódot a táblázat *Bővítmények → Apps Script* menüjébe másolva, webalkalmazásként telepítve (*Végrehajtás: Én, Hozzáférés: Bárki*), majd az URL-t a `config.js` `szolgaltatasUrl` mezőjébe írva. Ez csak akkor működik, ha a `firebase` blokk üres.

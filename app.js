@@ -5,6 +5,7 @@
   var CM = C.megszolitas || 'György';
   var CM_NEK = C.megszolitasNek || (CM + 'nek');
   var CM_HOZ = C.megszolitasHoz || (CM + 'höz');
+  var CM_TOL = C.megszolitasTol || (CM + 'től');
 
   /* ---------- segédek ---------- */
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -50,12 +51,21 @@
   if (params.get('d') && !st.datum) st.datum = params.get('d');
 
   var ui = { edit: null, syncText: '', scrollTo: null };
+  var FBM = !!(C.firebase && C.firebase.apiKey) && kod !== 'minta';
+  var fb = null, fbUser = null, fbState = FBM ? 'tolt' : 'kesz', fbHiba = '', unwatch = null, claimTried = false, pendingRender = false;
 
   /* ---------- mentés ---------- */
   var timer = null, busy = false, again = false, lastSync = 0;
-  function save() {
+  function save(fields) {
     st.frissitve = Date.now();
     LS.set(KEY, st);
+    if (FBM) {
+      if (!fb || !fbUser) return;
+      var f = Object.assign({}, fields || {}, { kesz: valaszolt(), osszes: OSSZES, frissitve: st.frissitve });
+      setSync('Mentés…');
+      fb.update(kod, f).then(function () { setSync('Elmentve, ' + CM + ' is látja'); }, function () { setSync('Nem sikerült menteni. Van internet?'); });
+      return;
+    }
     if (!C.szolgaltatasUrl || kod === 'minta') return;
     clearTimeout(timer);
     timer = setTimeout(push, 1200);
@@ -81,7 +91,7 @@
       .then(function () { busy = false; if (again) { again = false; push(); } });
   }
   function load() {
-    if (!C.szolgaltatasUrl || !kod || kod === 'minta') return;
+    if (FBM || !C.szolgaltatasUrl || !kod || kod === 'minta') return;
     var ctl = new AbortController(); var t = setTimeout(function () { ctl.abort(); }, 10000);
     fetch(C.szolgaltatasUrl + '?action=load&p=' + encodeURIComponent(kod), { signal: ctl.signal })
       .then(function (r) { return r.json(); })
@@ -130,6 +140,19 @@
       '<a class="btn" href="?p=minta&n=' + encodeURIComponent('Minta pár') + '">Megnézem a mintát</a></div>';
   }
 
+  function vBelepes() {
+    return deco(['tl', 'tr', 'bl', 'br']) + '<div class="cover">' +
+      '<div class="disp big" style="font-size:clamp(40px,12vw,52px)">ESKÜVŐI<br>SEGÉDLET</div><div class="rule"></div>' +
+      (params.get('n') ? '<div class="disp" style="font-size:26px">' + esc(params.get('n')) + '</div>' : '') +
+      '<p class="small" style="max-width:330px;margin:0">Lépjetek be, hogy a válaszaitok elmentődjenek, és bármelyik telefonon vagy gépen folytatni tudjátok. A pár mindkét tagja beléphet a saját fiókjával.</p>' +
+      '<div id="login" style="width:100%;display:flex;justify-content:center"></div></div>';
+  }
+  function vUzenet(cim, szoveg, extra) {
+    return deco(['tl', 'tr', 'bl', 'br']) + '<div class="cover"><div class="disp" style="font-size:34px;line-height:1.1">' + esc(cim) + '</div><div class="rule"></div>' +
+      '<p class="small" style="max-width:330px;margin:0">' + szoveg + '</p>' + (extra || '') + '</div>';
+  }
+  function kilepGomb() { return fbUser ? '<button class="btn mini" style="border:none;text-decoration:underline;align-self:center" data-act="logout">Kijelentkezés (' + esc(fbUser.email || '') + ')</button>' : ''; }
+
   function vNyito() {
     return deco(['tl', 'tr', 'bl', 'br']) + '<div class="cover">' +
       '<div class="disp big">ESKÜVŐI<br>SEGÉDLET</div><div class="rule"></div>' +
@@ -157,7 +180,7 @@
       var inner = '<span class="row"><span class="nm">' + esc(f.cim) + '</span><span class="ct">' + (open ? d + ' / ' + t : 'Zárva') + '</span></span><span class="bar"><i style="width:' + Math.round(d / t * 100) + '%;background:' + (d === t ? 'var(--sage)' : 'var(--gold)') + '"></i></span>';
       return open ? '<a class="chap" href="#fejezet-' + i + '">' + inner + '</a>' : '<div class="chap locked" aria-disabled="true">' + inner + '</div>';
     }).join('');
-    h += '<p class="sync" id="sync">' + esc(ui.syncText) + '</p></main>' + nav('kezdolap');
+    h += '<p class="sync" id="sync">' + esc(ui.syncText) + '</p>' + kilepGomb() + '</main>' + nav('kezdolap');
     return h;
   }
 
@@ -233,6 +256,15 @@
   function route() { return (location.hash || '#kezdolap').slice(1); }
   function render() {
     var app = document.getElementById('app'), r = route(), h;
+    if (FBM && fbState !== 'kesz') {
+      if (fbState === 'tolt') h = vUzenet('Betöltés…', 'Egy pillanat.');
+      else if (fbState === 'ki') h = vBelepes();
+      else if (fbState === 'hiba') h = vUzenet('Ez a link nem nyílik meg', esc(fbHiba), '<a class="btn" href="mailto:' + esc(C.email || '') + '?subject=' + encodeURIComponent('Segédlet link') + '">Írok ' + esc(CM_NEK) + '</a>' + kilepGomb());
+      else if (fbState === 'nincs') h = vUzenet('Esküvői segédlet', 'Ehhez a fiókhoz még nem tartozik segédlet. Nyissátok meg a ' + esc(CM_TOL) + ' kapott saját linketeket.', kilepGomb());
+      app.innerHTML = h;
+      if (fbState === 'ki') window.segedletLogin(document.getElementById('login'), fb, {});
+      return;
+    }
     if (!kod) h = vNincsKod();
     else if (!st.kezdve) h = vNyito();
     else if (r.indexOf('fejezet-') === 0) h = vFejezet(parseInt(r.slice(8), 10));
@@ -254,15 +286,16 @@
     if (act === 'start') {
       st.nev = document.getElementById('f-nev').value.trim() || st.nev;
       st.datum = document.getElementById('f-datum').value || st.datum;
-      st.kezdve = true; save(); location.hash = 'kezdolap'; render(); window.scrollTo(0, 0);
+      st.kezdve = true; save({ nev: st.nev, datum: st.datum, kezdve: true }); location.hash = 'kezdolap'; render(); window.scrollTo(0, 0);
     } else if (act === 'answer') {
       var id = b.getAttribute('data-id'), note = document.getElementById('note-' + id);
       st.valaszok[id] = { a: b.getAttribute('data-a'), n: note ? note.value.trim() : '', t: Date.now() };
-      var wasEdit = ui.edit === id; ui.edit = null; save();
+      var wasEdit = ui.edit === id; ui.edit = null; var fld = {}; fld['valaszok.' + id] = st.valaszok[id]; save(fld);
       ui.scrollTo = wasEdit ? null : 'cur'; render();
     } else if (act === 'edit') { ui.edit = b.getAttribute('data-id'); render(); var c = document.getElementById('cur'); if (c) c.scrollIntoView({ block: 'center' }); }
     else if (act === 'canceledit') { ui.edit = null; render(); }
     else if (act === 'copy') copy(osszefoglalo());
+    else if (act === 'logout') { if (fb) fb.logout().then(function () { location.hash = ''; }); }
     else if (act === 'mail') {
       var body = osszefoglalo(); if (body.length > 1800) body = body.slice(0, 1800) + '\n…(a teljes összefoglalót a „Másolás” gombbal tudjátok bemásolni)';
       location.href = 'mailto:' + (C.email || '') + '?subject=' + encodeURIComponent('Esküvői segédlet – ' + (st.nev || '')) + '&body=' + encodeURIComponent(body);
@@ -272,6 +305,50 @@
 
   if (!C.szolgaltatasUrl) ui.syncText = 'A válaszaitok ezen a készüléken mentődnek.';
   else if (kod === 'minta') ui.syncText = 'Minta mód – a válaszok csak itt mentődnek.';
+  if (FBM) ui.syncText = '';
   render();
   load();
+  if (FBM) startFB();
+
+  function startFB() {
+    if (!window.SegedletFB) { fbState = 'hiba'; fbHiba = 'Nem sikerült betölteni a belépést. Frissítsd az oldalt.'; render(); return; }
+    window.SegedletFB(C.firebase).then(function (api) {
+      fb = api;
+      fb.onUser(function (u) {
+        fbUser = u;
+        if (unwatch) { unwatch(); unwatch = null; }
+        if (!u) { fbState = 'ki'; render(); return; }
+        fbState = 'tolt'; render();
+        if (!kod) {
+          fb.myCouples().then(function (list) {
+            if (list.length) location.replace('?p=' + encodeURIComponent(list[0].p) + '#kezdolap');
+            else { fbState = 'nincs'; render(); }
+          }, function () { fbState = 'nincs'; render(); });
+          return;
+        }
+        claimTried = false; figyel();
+      });
+    }, function () { fbState = 'hiba'; fbHiba = 'Nem sikerült betölteni a belépést. Van internet? Frissítsd az oldalt.'; render(); });
+  }
+  function figyel() {
+    unwatch = fb.watch(kod, function (data) {
+      if (!data) { fbState = 'hiba'; fbHiba = 'Ez a link érvénytelen vagy törölve lett.'; render(); return; }
+      st = { nev: data.nev || '', datum: data.datum || '', kezdve: !!data.kezdve, valaszok: data.valaszok || {}, frissitve: data.frissitve || 0 };
+      LS.set(KEY, st);
+      fbState = 'kesz';
+      var a = document.activeElement;
+      if (a && /^(TEXTAREA|INPUT)$/.test(a.tagName) && document.getElementById('app').contains(a)) { pendingRender = true; return; }
+      render();
+    }, function () {
+      if (unwatch) { unwatch(); unwatch = null; }
+      if (claimTried) { fbState = 'hiba'; fbHiba = 'Ezt a linket már két fiók használja, vagy érvénytelen. Ha a párod lépett be vele, ő látja. Szólj ' + CM_NEK + ', és újra megnyitja.'; render(); return; }
+      claimTried = true;
+      fb.claim(kod).then(figyel, function (e) {
+        fbState = 'hiba';
+        fbHiba = e && e.code === 'not-found' ? 'Ez a link érvénytelen vagy törölve lett.' : 'Ezt a linket már két fiók használja. Ha a párod lépett be vele, ő látja a segédletet. Szólj ' + CM_NEK + ', és újra megnyitja.';
+        render();
+      });
+    });
+  }
+  document.addEventListener('focusout', function () { if (pendingRender) setTimeout(function () { var a = document.activeElement; if (!(a && /^(TEXTAREA|INPUT)$/.test(a.tagName))) { pendingRender = false; render(); } }, 0); });
 })();

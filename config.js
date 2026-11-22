@@ -14,12 +14,12 @@ window.SEGEDLET_CONFIG = {
   // Ha ki van töltve, a párok Google-fiókkal vagy e-mail + jelszóval lépnek be,
   // és minden válasz a Firebase-be mentődik (a Google Táblázat ilyenkor nem kell).
   firebase: {
-    apiKey: '',
-    authDomain: '',
-    projectId: '',
-    storageBucket: '',
-    messagingSenderId: '',
-    appId: ''
+    apiKey: 'AIzaSyA93rr7tUuXiqlkUpBR_B-ZhzEDXD7TEXs',
+    authDomain: 'eskuvoi-segedlet.firebaseapp.com',
+    projectId: 'eskuvoi-segedlet',
+    storageBucket: 'eskuvoi-segedlet.firebasestorage.app',
+    messagingSenderId: '639640734054',
+    appId: '1:639640734054:web:7e5c1f2380e267fe02e0a7'
   },
   // Ezzel az e-mail-címmel lépsz be az admin oldalra (a firestore.rules fájlban is ez szerepel).
   adminEmail: 'eskuvo.popovicsgyorgy@gmail.com',

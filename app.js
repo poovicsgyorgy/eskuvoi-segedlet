@@ -232,21 +232,31 @@
 
   function vOsszesito() {
     var cnt = { kesz: 0, folyamatban: 0, meg_nem: 0, nem_rel: 0 };
-    Object.keys(st.valaszok).forEach(function (id) { var a = st.valaszok[id].a; if (cnt[a] != null) cnt[a]++; });
-    var h = deco(['tl']) + '<main><h1 class="disp title">Összesítő</h1><p class="small center" style="margin:0">Ami még teendő, fejezetenként</p>';
-    h += '<div class="stats"><div><b>' + cnt.kesz + '</b><span>kész</span></div><div><b>' + cnt.folyamatban + '</b><span>folyamatban</span></div><div><b>' + cnt.meg_nem + '</b><span>még nem</span></div></div>';
-    var any = false;
+    FEJ.forEach(function (f) { f.kerdesek.forEach(function (k) { var v = st.valaszok[k.id]; if (v && cnt[v.a] != null) cnt[v.a]++; }); });
+    var sz = ui.szuro || 'meg_nem';
+    var h = deco(['tl']) + '<main><h1 class="disp title">Összesítő</h1><p class="small center" style="margin:0">Koppints egy gombra, és megmutatjuk, mely kérdéseknél adtátok ezt a választ.</p>';
+    h += '<div class="opts szuro" role="group" aria-label="Szűrés válasz szerint">' + VALASZ.map(function (o) {
+      return '<button class="opt" data-act="szuro" data-a="' + o[0] + '" aria-pressed="' + (sz === o[0]) + '"><span class="db">' + cnt[o[0]] + '</span>' + o[1] + '</button>';
+    }).join('') + '</div>';
+    var talalt = 0;
     FEJ.forEach(function (f) {
-      var ny = f.kerdesek.filter(function (k) { var v = st.valaszok[k.id]; return v && (v.a === 'folyamatban' || v.a === 'meg_nem'); });
-      var hatra = f.kerdesek.length - valaszolt(f);
-      if (!ny.length && !hatra) return;
-      any = true;
-      h += '<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><a class="disp" style="font-size:21px;text-decoration:none" href="#fejezet-' + f.idx + '">' + esc(f.cim) + '</a>' + (ny.length ? '<span class="small" style="font-weight:700;color:var(--blushink);white-space:nowrap">' + ny.length + ' teendő</span>' : '') + '</div>' +
-        (ny.length ? '<ul class="open">' + ny.map(function (k) { return '<li><span>' + esc(k.q) + ' <span class="chip a-' + st.valaszok[k.id].a + '">' + CIMKE[st.valaszok[k.id].a] + '</span></span></li>'; }).join('') + '</ul>' : '') +
-        (hatra ? '<div class="small" style="margin-top:8px">Még ' + hatra + ' kérdés nincs megválaszolva.</div>' : '') + '</div>';
+      var lista = [];
+      f.kerdesek.forEach(function (k, i) { var v = st.valaszok[k.id]; if (v && v.a === sz) lista.push({ k: k, v: v, n: i + 1 }); });
+      if (!lista.length) return;
+      talalt += lista.length;
+      h += '<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><a class="disp" style="font-size:22px;text-decoration:none" href="#fejezet-' + f.idx + '">' + esc(f.cim) + '</a><span class="small" style="font-weight:700;white-space:nowrap">' + lista.length + ' kérdés</span></div><ul class="open">' +
+        lista.map(function (x) {
+          return '<li><button class="olink" data-act="goto" data-id="' + x.k.id + '" data-fi="' + f.idx + '"><span>' + esc(x.k.q) + '</span>' + (x.v.n ? '<span class="nt">' + esc(x.v.n) + '</span>' : '') + '<span class="mod">Válasz módosítása ›</span></button></li>';
+        }).join('') + '</ul></div>';
     });
-    if (!any) h += '<div class="card center"><div class="disp" style="font-size:26px">Minden kész!</div><div class="small">Nincs nyitott teendő.</div></div>';
-    if (C.szolgaltatasUrl) h += '<p class="small center" style="margin:0">A válaszaitok automatikusan eljutnak ' + esc(CM_HOZ) + '.</p>';
+    if (!talalt) h += '<div class="card center"><div class="disp" style="font-size:24px">Nincs ilyen válasz</div><div class="small">' + (sz === 'meg_nem' || sz === 'folyamatban' ? 'Ebben a kategóriában most nincs teendőtök.' : 'Még egyik kérdésnél sem ezt választottátok.') + '</div></div>';
+    var hatra = FEJ.map(function (f) { return { f: f, n: f.kerdesek.length - valaszolt(f) }; }).filter(function (x) { return x.n > 0; });
+    if (hatra.length) {
+      h += '<div class="card"><div style="font-weight:700;margin-bottom:6px">Még előttetek álló kérdések</div>' + hatra.map(function (x) {
+        return '<a class="row-link" href="#fejezet-' + x.f.idx + '"><span>' + esc(x.f.cim) + '</span><span class="small" style="font-weight:600;white-space:nowrap">' + x.n + ' kérdés ›</span></a>';
+      }).join('') + '</div>';
+    }
+    if (C.szolgaltatasUrl || FBM) h += '<p class="small center" style="margin:0">A válaszaitok automatikusan eljutnak ' + esc(CM_HOZ) + '.</p>';
     h += '<button class="btn p w" data-act="mail">E-mail küldése ' + esc(CM_NEK) + '</button><button class="btn w" data-act="copy">Összefoglaló másolása</button>';
     h += '<p class="sync" id="sync">' + esc(ui.syncText) + '</p></main>' + nav('osszesito');
     return h;
@@ -295,13 +305,20 @@
     } else if (act === 'edit') { ui.edit = b.getAttribute('data-id'); render(); var c = document.getElementById('cur'); if (c) c.scrollIntoView({ block: 'center' }); }
     else if (act === 'canceledit') { ui.edit = null; render(); }
     else if (act === 'copy') copy(osszefoglalo());
+    else if (act === 'szuro') { ui.szuro = b.getAttribute('data-a'); render(); }
+    else if (act === 'goto') { ui.gotoEdit = b.getAttribute('data-id'); ui.scrollTo = 'cur'; location.hash = 'fejezet-' + b.getAttribute('data-fi'); }
     else if (act === 'logout') { if (fb) fb.logout().then(function () { location.hash = ''; }); }
     else if (act === 'mail') {
       var body = osszefoglalo(); if (body.length > 1800) body = body.slice(0, 1800) + '\n…(a teljes összefoglalót a „Másolás” gombbal tudjátok bemásolni)';
       location.href = 'mailto:' + (C.email || '') + '?subject=' + encodeURIComponent('Esküvői segédlet – ' + (st.nev || '')) + '&body=' + encodeURIComponent(body);
     }
   });
-  window.addEventListener('hashchange', function () { ui.edit = null; render(); window.scrollTo(0, 0); });
+  window.addEventListener('hashchange', function () {
+    ui.edit = ui.gotoEdit || null; ui.gotoEdit = null;
+    var keep = !!ui.scrollTo;
+    if (!keep) window.scrollTo(0, 0);
+    render();
+  });
 
   if (!C.szolgaltatasUrl) ui.syncText = 'A válaszaitok ezen a készüléken mentődnek.';
   else if (kod === 'minta') ui.syncText = 'Minta mód – a válaszok csak itt mentődnek.';

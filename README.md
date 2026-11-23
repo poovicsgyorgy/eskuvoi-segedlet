@@ -46,7 +46,7 @@ Az admin oldalon egy pár **Válaszok** gombjával megnyílik az összes válasz
 
 Az e-maileket egy ingyenes Google Apps Script küldi a te Gmail-fiókodból:
 - **neked:** amikor egy pár befejez egy fejezetet vagy a teljes segédletet, és amikor válaszol a megjegyzésedre;
-- **a párnak:** amikor megjegyzést írsz neki, amikor 14 napja nem nyitotta meg a segédletet, és amikor 30 napon belül lesz az esküvő, de még legalább 5 teendője van (hetente legfeljebb egyszer).
+- **a párnak:** amikor megjegyzést írsz neki.
 
 1. Menj a **script.google.com** oldalra (az `eskuvo.popovicsgyorgy@gmail.com` fiókkal) → **Új projekt**. Bal fent nevezd el: `Segédlet értesítések`.
 2. Töröld ki a szerkesztőben lévő kódot, és másold be az [`ertesites/Code.gs`](ertesites/Code.gs) teljes tartalmát. Mentés (floppy ikon).

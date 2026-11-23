@@ -5,8 +5,6 @@
  *  - Neked ír, ha egy pár befejez egy fejezetet, vagy az egész segédletet,
  *    illetve ha a pár válaszol a megjegyzésedre.
  *  - A párnak ír, ha megjegyzést hagysz neki az admin oldalon.
- *  - Naponta egyszer emlékeztetőt küld a párnak, ha 14 napja nem nyitotta meg
- *    a segédletet, vagy ha 30 napon belül lesz az esküvő, és még sok a teendő.
  *
  * Az e-maileket a te Gmail-fiókodból küldi. Beállítás: README.md, „Értesítések beállítása”.
  */
@@ -14,11 +12,6 @@
 var ADMIN_EMAIL = 'eskuvo.popovicsgyorgy@gmail.com';
 var FIREBASE_API_KEY = 'AIzaSyA93rr7tUuXiqlkUpBR_B-ZhzEDXD7TEXs';
 var FELADO_NEV = 'Popovics György – Esküvői segédlet';
-
-var INAKTIV_NAP = 14;      // ennyi nap tétlenség után jön emlékeztető
-var KOZELI_NAP = 30;       // az esküvő előtt ennyi nappal kezdődnek a „közeleg” emlékeztetők
-var KOZELI_TEENDO = 5;     // ennyi „Még nem” / „Folyamatban” válasz felett szól
-var KOZELI_GYAKORISAG = 7; // a „közeleg” emlékeztető legfeljebb ennyi naponta
 
 /* ---------- belépési pontok ---------- */
 
@@ -45,10 +38,8 @@ function doPost(e) {
   }
 }
 
-/** Egyszer futtasd le kézzel: beállítja a napi emlékeztetőt (minden reggel 9 körül). */
+/** Egyszer futtasd le kézzel: engedélyezi az e-mail-küldést, és küld egy próba e-mailt. */
 function beallitas() {
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'napi') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('napi').timeBased().everyDays(1).atHour(9).inTimezone('Europe/Budapest').create();
   MailApp.sendEmail({ to: ADMIN_EMAIL, subject: 'Esküvői segédlet – az értesítések be vannak kapcsolva', name: FELADO_NEV,
     htmlBody: level('Az értesítések működnek', ['Mostantól ide kapod az értesítéseket a párok haladásáról.', 'Ezt az e-mailt a beállítás próbájaként kaptad.'], null, null) });
 }
@@ -152,39 +143,4 @@ function megjegyzes(b) {
       'Az alkalmazásban válaszolhattok is rá.'
     ].filter(Boolean), 'Megnyitom a segédletet', link));
   return { ok: ok };
-}
-
-/* ---------- napi emlékeztetők ---------- */
-
-function napi() {
-  var most = Date.now(), NAP = 86400000;
-  var props = P.getProperties();
-  Object.keys(props).forEach(function (key) {
-    if (key.indexOf('par:') !== 0) return;
-    var kod = key.slice(4), rec;
-    try { rec = JSON.parse(props[key]); } catch (e) { return; }
-    if (!rec || !rec.emails || !rec.emails.length || rec.mindKesz) return;
-    var valt = false;
-
-    var nap = null;
-    if (rec.datum) { var d = new Date(rec.datum + 'T12:00:00'); if (!isNaN(d)) nap = Math.ceil((d.getTime() - most) / NAP); }
-    if (nap !== null && nap < 0) return;
-
-    if (nap !== null && nap <= KOZELI_NAP && rec.megNem >= KOZELI_TEENDO && most - (rec.emlKozel || 0) > KOZELI_GYAKORISAG * NAP) {
-      if (kuld(rec.emails, nap + ' nap az esküvőig – nézzük, mi van még hátra',
-        level('Már csak ' + nap + ' nap!', [
-          'Kedves ' + esc(rec.nev) + '!',
-          'Közeledik a nagy nap. Az esküvői segédletben még <b>' + rec.megNem + ' teendő</b> áll „Még nem” vagy „Folyamatban” állapotban.',
-          'Az összesítőben egy koppintással megnézhetitek, melyek ezek.'
-        ], 'Megnyitom az összesítőt', rec.link ? rec.link + '#osszesito' : null))) { rec.emlKozel = most; valt = true; }
-    } else if (rec.osszes && rec.kesz < rec.osszes && most - (rec.aktiv || 0) > INAKTIV_NAP * NAP && most - (rec.emlInakt || 0) > INAKTIV_NAP * NAP) {
-      if (kuld(rec.emails, 'Folytassuk az esküvői segédletet?',
-        level('Folytassuk?', [
-          'Kedves ' + esc(rec.nev) + '!',
-          'Már ' + INAKTIV_NAP + ' napja nem jártatok az esküvői segédletben. Eddig ' + rec.kesz + ' / ' + rec.osszes + ' kérdésre válaszoltatok.',
-          'Ott folytathatjátok, ahol abbahagytátok.'
-        ], 'Folytatom', rec.link))) { rec.emlInakt = most; valt = true; }
-    }
-    if (valt) ir(kod, rec);
-  });
 }

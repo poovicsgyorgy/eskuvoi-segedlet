@@ -20,13 +20,14 @@ service cloud.firestore {
       allow read: if isAdmin() || isMember();
 
       // Párt létrehozni és törölni csak a ceremóniamester tud.
+      // A megjegyzéseket (megjegyzesek) is csak ő írhatja.
       allow create, delete: if isAdmin();
 
       allow update: if isAdmin()
         // A pár tagjai csak a válaszaikat és az alapadataikat írhatják.
         || (isMember()
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['valaszok', 'kesz', 'osszes', 'frissitve', 'nev', 'datum', 'kezdve'])
+                 .hasOnly(['valaszok', 'kesz', 'osszes', 'frissitve', 'nev', 'datum', 'kezdve', 'olvasott'])
             && request.resource.data.valaszok is map
             && request.resource.data.nev is string && request.resource.data.nev.size() <= 80)
         // A link első megnyitásakor legfeljebb 2 fiók csatlakozhat a párhoz,

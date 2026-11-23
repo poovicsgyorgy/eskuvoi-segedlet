@@ -63,7 +63,7 @@
       if (!fb || !fbUser) return;
       var f = Object.assign({}, fields || {}, { kesz: valaszolt(), osszes: OSSZES, frissitve: st.frissitve });
       setSync('Mentés…');
-      fb.update(kod, f).then(function () { setSync('Elmentve, ' + CM + ' is látja'); }, function () { setSync('Nem sikerült menteni. Van internet?'); });
+      fb.update(kod, f).then(function () { setSync('Elmentve, ' + CM + ' is látja'); ertesit(); }, function () { setSync('Nem sikerült menteni. Van internet?'); });
       return;
     }
     if (!C.szolgaltatasUrl || kod === 'minta') return;
@@ -112,6 +112,23 @@
     return list.filter(function (k) { return st.valaszok[k.id]; }).length;
   }
   function aktualis(f) { for (var i = 0; i < f.kerdesek.length; i++) if (!st.valaszok[f.kerdesek[i].id]) return i; return f.kerdesek.length; }
+  var KERDES = {};
+  FEJ.forEach(function (f) { f.kerdesek.forEach(function (k, i) { KERDES[k.id] = { k: k, f: f, i: i }; }); });
+  function megj(id) { var c = (st.megjegyzesek || {})[id]; return c && c.s ? c : null; }
+  function olvasatlan(id) { var c = megj(id); return !!(c && (c.t || 0) > ((st.olvasott || {})[id] || 0)); }
+  function olvasottnak(id) {
+    if (!FBM || !olvasatlan(id)) return;
+    st.olvasott = st.olvasott || {}; st.olvasott[id] = Date.now();
+    var f = {}; f['olvasott.' + id] = st.olvasott[id]; save(f);
+  }
+  function megjBlokk(id) {
+    var c = megj(id); if (!c) return '';
+    var v = st.valaszok[id] || {};
+    return '<div class="msg"><b>' + esc(CM.toUpperCase()) + ' MEGJEGYZÉSE</b><p>' + esc(c.s) + '</p>' +
+      (v.r ? '<div class="reply"><span>A ti válaszotok:</span> ' + esc(v.r) + '</div>' : '') +
+      '<label class="f">' + (v.r ? 'Újabb válasz' : 'Válasz ' + esc(CM_NEK)) + '<textarea id="reply-' + id + '" placeholder="Írjatok vissza…"></textarea></label>' +
+      '<button class="btn" data-act="reply" data-id="' + id + '">Válasz küldése</button></div>';
+  }
   function fejezetNyitva(fi) {
     if (!C.fejezetekSorban || fi === 0) return true;
     var e = FEJ[fi - 1]; return aktualis(e) >= e.kerdesek.length;
@@ -172,6 +189,19 @@
     h += '<div class="card" style="display:flex;gap:18px;align-items:center"><div class="ring" style="background:conic-gradient(var(--ink) 0 ' + pct + '%, #E4DDD0 ' + pct + '% 100%)"><div><span class="disp" style="font-size:28px;line-height:1">' + pct + '%</span><span class="small" style="font-size:11px;font-weight:600">kész</span></div></div>' +
       '<div style="display:flex;flex-direction:column;gap:4px">' + (n != null && n >= 0 ? '<div class="disp" style="font-size:30px;line-height:1">' + n + ' nap</div><div class="small">van hátra a nagy napig</div>' : '') +
       '<div style="font-size:14px;font-weight:600">' + v + ' / ' + OSSZES + ' kérdés megválaszolva</div></div></div>';
+    var ms = Object.keys(st.megjegyzesek || {}).filter(function (id) { return megj(id) && (id === '_altalanos' || KERDES[id]); })
+      .sort(function (a, b) { return (st.megjegyzesek[b].t || 0) - (st.megjegyzesek[a].t || 0); });
+    if (ms.length) {
+      var uj = ms.filter(olvasatlan).length;
+      h += '<section class="card msgs"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="eyebrow">' + esc(CM.toUpperCase()) + ' ÜZENETEI</span>' + (uj ? '<span class="chip a-meg_nem">' + uj + ' új</span>' : '') + '</div>' +
+        ms.map(function (id) {
+          var c = st.megjegyzesek[id], x = KERDES[id], un = olvasatlan(id);
+          if (id === '_altalanos') return '<div class="mi' + (un ? ' uj' : '') + '"><span style="font-size:14px;line-height:1.5">' + esc(c.s) + '</span>' + (un ? '<button class="btn mini" data-act="olvas" data-id="_altalanos" style="align-self:flex-start">Elolvastam</button>' : '') + '</div>';
+          var r = (st.valaszok[id] || {}).r;
+          return '<button class="mi olink' + (un ? ' uj' : '') + '" data-act="goto" data-id="' + id + '" data-fi="' + x.f.idx + '"><span class="small">' + esc(x.f.cim) + ' · ' + (x.i + 1) + '. kérdés</span><span style="font-weight:600">' + esc(x.k.q) + '</span><span>„' + esc(c.s) + '”</span>' +
+            (r ? '<span class="small">Válaszoltatok ✓</span>' : '<span class="mod">Megnyitás és válasz ›</span>') + '</button>';
+        }).join('') + '</section>';
+    }
     var folyt = FEJ.filter(function (f) { var a = aktualis(f); return a > 0 && a < f.kerdesek.length; })[0] || FEJ.filter(function (f, i) { return aktualis(f) < f.kerdesek.length && fejezetNyitva(i); })[0];
     if (folyt) h += '<a class="btn p w" href="#fejezet-' + folyt.idx + '">Folytatás: ' + esc(folyt.cim) + '</a>';
     h += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px"><span class="eyebrow">FEJEZETEK</span><span class="small">' + FEJ.length + ' téma</span></div>';
@@ -196,14 +226,14 @@
       if (k.ri !== lastSec) { lastSec = k.ri; h += '<div class="sec">' + esc(k.resz) + '</div>'; }
       var v = st.valaszok[k.id];
       if (i < cur && ui.edit !== k.id) {
-        h += '<button class="done" data-act="edit" data-id="' + k.id + '" aria-label="' + (i + 1) + '. kérdés módosítása"><span class="n">' + (i + 1) + '.</span><span class="q">' + esc(k.q) + (v && v.n ? '<span class="nt">' + esc(v.n) + '</span>' : '') + '</span><span class="chip a-' + v.a + '">' + CIMKE[v.a] + '</span></button>';
+        h += '<button class="done" data-act="edit" data-id="' + k.id + '" aria-label="' + (i + 1) + '. kérdés módosítása"><span class="n">' + (i + 1) + '.</span><span class="q">' + esc(k.q) + (v && v.n ? '<span class="nt">' + esc(v.n) + '</span>' : '') + (megj(k.id) ? '<span class="mbadge' + (olvasatlan(k.id) ? ' uj' : '') + '">' + esc(CM) + ' megjegyzése' + (olvasatlan(k.id) ? ' · új' : '') + '</span>' : '') + '</span><span class="chip a-' + v.a + '">' + CIMKE[v.a] + '</span></button>';
       } else {
         if (k.tipp && i === cur) h += '<div class="tip"><b>' + esc(CM.toUpperCase()) + ' TANÁCSA</b><p>' + esc(k.tipp) + '</p></div>';
         var editing = i < cur;
         h += '<section class="cur" id="cur"><span class="lab">' + (editing ? 'VÁLASZ MÓDOSÍTÁSA · ' : '') + (i + 1) + '. KÉRDÉS</span><div class="q">' + esc(k.q) + '</div>' +
           '<div class="opts">' + VALASZ.map(function (o) { return '<button class="opt" data-act="answer" data-id="' + k.id + '" data-a="' + o[0] + '" aria-pressed="' + (v && v.a === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
           '<label class="f">Jegyzet (nem kötelező)<textarea id="note-' + k.id + '" placeholder="Pl. ki intézi, mikorra, mi a kérdésetek…">' + esc(v ? v.n : '') + '</textarea></label>' +
-          (editing ? '<button class="btn" data-act="canceledit">Mégse</button>' : '') + '</section>';
+          (editing ? megjBlokk(k.id) + '<button class="btn" data-act="canceledit">Mégse</button>' : '') + '</section>';
       }
     });
     if (cur < t - 1) {
@@ -246,7 +276,7 @@
       talalt += lista.length;
       h += '<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><a class="disp" style="font-size:22px;text-decoration:none" href="#fejezet-' + f.idx + '">' + esc(f.cim) + '</a><span class="small" style="font-weight:700;white-space:nowrap">' + lista.length + ' kérdés</span></div><ul class="open">' +
         lista.map(function (x) {
-          return '<li><button class="olink" data-act="goto" data-id="' + x.k.id + '" data-fi="' + f.idx + '"><span>' + esc(x.k.q) + '</span>' + (x.v.n ? '<span class="nt">' + esc(x.v.n) + '</span>' : '') + '<span class="mod">Válasz módosítása ›</span></button></li>';
+          return '<li><button class="olink" data-act="goto" data-id="' + x.k.id + '" data-fi="' + f.idx + '"><span>' + esc(x.k.q) + '</span>' + (x.v.n ? '<span class="nt">' + esc(x.v.n) + '</span>' : '') + (megj(x.k.id) ? '<span class="mbadge' + (olvasatlan(x.k.id) ? ' uj' : '') + '">' + esc(CM) + ': „' + esc(megj(x.k.id).s) + '”</span>' : '') + '<span class="mod">Válasz módosítása ›</span></button></li>';
         }).join('') + '</ul></div>';
     });
     if (!talalt) h += '<div class="card center"><div class="disp" style="font-size:24px">Nincs ilyen válasz</div><div class="small">' + (sz === 'meg_nem' || sz === 'folyamatban' ? 'Ebben a kategóriában most nincs teendőtök.' : 'Még egyik kérdésnél sem ezt választottátok.') + '</div></div>';
@@ -299,14 +329,23 @@
       st.kezdve = true; save({ nev: st.nev, datum: st.datum, kezdve: true }); location.hash = 'kezdolap'; render(); window.scrollTo(0, 0);
     } else if (act === 'answer') {
       var id = b.getAttribute('data-id'), note = document.getElementById('note-' + id);
-      st.valaszok[id] = { a: b.getAttribute('data-a'), n: note ? note.value.trim() : '', t: Date.now() };
+      st.valaszok[id] = Object.assign({}, st.valaszok[id] || {}, { a: b.getAttribute('data-a'), n: note ? note.value.trim() : '', t: Date.now() });
       var wasEdit = ui.edit === id; ui.edit = null; var fld = {}; fld['valaszok.' + id] = st.valaszok[id]; save(fld);
       ui.scrollTo = wasEdit ? null : 'cur'; render();
-    } else if (act === 'edit') { ui.edit = b.getAttribute('data-id'); render(); var c = document.getElementById('cur'); if (c) c.scrollIntoView({ block: 'center' }); }
+    } else if (act === 'edit') { ui.edit = b.getAttribute('data-id'); olvasottnak(ui.edit); render(); var c = document.getElementById('cur'); if (c) c.scrollIntoView({ block: 'center' }); }
     else if (act === 'canceledit') { ui.edit = null; render(); }
     else if (act === 'copy') copy(osszefoglalo());
     else if (act === 'szuro') { ui.szuro = b.getAttribute('data-a'); render(); }
-    else if (act === 'goto') { ui.gotoEdit = b.getAttribute('data-id'); ui.scrollTo = 'cur'; location.hash = 'fejezet-' + b.getAttribute('data-fi'); }
+    else if (act === 'olvas') { olvasottnak(b.getAttribute('data-id')); render(); }
+    else if (act === 'reply') {
+      var rid = b.getAttribute('data-id'), ta = document.getElementById('reply-' + rid), txt = ta ? ta.value.trim() : '';
+      if (!txt) { if (ta) ta.focus(); return; }
+      st.valaszok[rid] = Object.assign({}, st.valaszok[rid] || {}, { r: txt, rt: Date.now() });
+      var rf = {}; rf['valaszok.' + rid] = st.valaszok[rid]; save(rf);
+      ertesit({ valasz: { kerdes: KERDES[rid] ? KERDES[rid].k.q : '', megjegyzes: (megj(rid) || {}).s || '', szoveg: txt } });
+      toast('Elküldve ' + CM_NEK); render();
+    }
+    else if (act === 'goto') { olvasottnak(b.getAttribute('data-id')); ui.gotoEdit = b.getAttribute('data-id'); ui.scrollTo = 'cur'; location.hash = 'fejezet-' + b.getAttribute('data-fi'); }
     else if (act === 'logout') { if (fb) fb.logout().then(function () { location.hash = ''; }); }
     else if (act === 'mail') {
       var body = osszefoglalo(); if (body.length > 1800) body = body.slice(0, 1800) + '\n…(a teljes összefoglalót a „Másolás” gombbal tudjátok bemásolni)';
@@ -326,6 +365,26 @@
   render();
   load();
   if (FBM) startFB();
+
+  var ertT = null, ertVal = [];
+  function ertesit(extra) {
+    if (!FBM || !C.ertesitesUrl || !fbUser) return;
+    if (extra && extra.valasz) ertVal.push(extra.valasz);
+    clearTimeout(ertT);
+    ertT = setTimeout(function () {
+      var kesz = FEJ.filter(function (f) { return valaszolt(f) === f.kerdesek.length; }).map(function (f) { return f.cim; });
+      var last = LS.get('ert:' + kod) || {}, now = Date.now(), sig = kesz.join('|');
+      if (!ertVal.length && sig === last.sig && now - (last.t || 0) < 30 * 60000) return;
+      var megNem = Object.keys(st.valaszok).filter(function (id) { var a = st.valaszok[id].a; return a === 'meg_nem' || a === 'folyamatban'; }).length;
+      var vals = ertVal; ertVal = [];
+      var payload = { action: 'allapot', p: kod, nev: st.nev, datum: st.datum, link: location.origin + location.pathname + '?p=' + encodeURIComponent(kod),
+        kesz: valaszolt(), osszes: OSSZES, megNem: megNem, keszFejezetek: kesz, valaszok: vals };
+      fbUser.getIdToken().then(function (token) {
+        payload.token = token;
+        return fetch(C.ertesitesUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+      }).then(function () { LS.set('ert:' + kod, { sig: sig, t: now }); }, function () { ertVal = vals.concat(ertVal); });
+    }, 4000);
+  }
 
   function startFB() {
     if (!window.SegedletFB) { fbState = 'hiba'; fbHiba = 'Nem sikerült betölteni a belépést. Frissítsd az oldalt.'; render(); return; }
@@ -350,7 +409,9 @@
   function figyel() {
     unwatch = fb.watch(kod, function (data) {
       if (!data) { fbState = 'hiba'; fbHiba = 'Ez a link érvénytelen vagy törölve lett.'; render(); return; }
-      st = { nev: data.nev || '', datum: data.datum || '', kezdve: !!data.kezdve, valaszok: data.valaszok || {}, frissitve: data.frissitve || 0 };
+      var elso = fbState !== 'kesz';
+      st = { nev: data.nev || '', datum: data.datum || '', kezdve: !!data.kezdve, valaszok: data.valaszok || {}, frissitve: data.frissitve || 0, megjegyzesek: data.megjegyzesek || {}, olvasott: data.olvasott || {} };
+      if (elso) setTimeout(function () { ertesit(); }, 1500);
       LS.set(KEY, st);
       fbState = 'kesz';
       var a = document.activeElement;

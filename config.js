@@ -24,6 +24,10 @@ window.SEGEDLET_CONFIG = {
   // Ezzel az e-mail-címmel lépsz be az admin oldalra (a firestore.rules fájlban is ez szerepel).
   adminEmail: 'eskuvo.popovicsgyorgy@gmail.com',
 
+  // E-MAIL ÉRTESÍTÉSEK (Google Apps Script webalkalmazás címe) – README, „Értesítések beállítása”.
+  // Üresen hagyva minden működik, csak e-mail nem megy ki.
+  ertesitesUrl: '',
+
   // (Régi, opcionális mód Firebase nélkül.) A Google Táblázat háttér címe (Apps Script webalkalmazás URL).
   // Amíg üres, a párok válaszai csak a saját telefonjukon mentődnek,
   // és e-mailben tudják elküldeni neked. Beállítás: README.md

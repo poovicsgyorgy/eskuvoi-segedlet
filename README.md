@@ -25,7 +25,7 @@ A belépést és a mentést a Google ingyenes Firebase szolgáltatása végzi.
    - **Email/Password** → az első kapcsoló (Email/Password) be → Save.
 3. **Authentication → Settings → Authorized domains → Add domain:** `poovicsgyorgy.github.io`
 4. **Build → Firestore Database → Create database** → helyszín: `eur3 (Europe)` → *production mode* → Create.
-5. **Firestore Database → Rules**: töröld ki, ami ott van, másold be a [`firestore.rules`](firestore.rules) teljes tartalmát → **Publish**.
+5. **Firestore Database → Rules**: töröld ki, ami ott van, másold be a [`firestore.rules`](firestore.rules) teljes tartalmát → **Publish**. (Ha a `firestore.rules` fájl később változik, ezt a lépést meg kell ismételni.)
 6. **Fogaskerék → Project settings → Your apps → `</>` (Web)** → név: `segedlet` → Register app. Másold ki a `firebaseConfig` értékeit.
 7. A GitHubon nyisd meg a [`config.js`](config.js) fájlt (ceruza ikon), és töltsd ki a `firebase: { ... }` blokkot a kapott értékekkel → **Commit changes**.
 8. Pár perc múlva nyisd meg az admin oldalt, és lépj be Google-lel az `eskuvo.popovicsgyorgy@gmail.com` fiókkal.
@@ -33,6 +33,30 @@ A belépést és a mentést a Google ingyenes Firebase szolgáltatása végzi.
 Ha más e-mail-címmel szeretnél adminként belépni, írd át a `config.js` fájlban (`adminEmail`) **és** a `firestore.rules` fájlban is, majd a szabályokat töltsd fel újra (5. lépés).
 
 **Költség:** az ingyenes (Spark) csomag bőven elég 20 párra. Bankkártyát nem kell megadni.
+
+## Megjegyzések a párnak
+
+Az admin oldalon egy pár **Válaszok** gombjával megnyílik az összes válasza. Itt:
+- **Általános üzenet a párnak:** ez a pár kezdőlapján jelenik meg.
+- **Megjegyzés írása** bármelyik megválaszolt kérdésnél: a pár a kezdőlapján („György üzenetei”) és a kérdésnél is látja, és **válaszolhat** rá.
+- A szűrőkkel (Még nem, Folyamatban, Megjegyzéssel…) gyorsan megtalálod, amit keresel.
+- Ha a pár válaszolt, a párok listájában „új válasz a pártól” jelzés jelenik meg.
+
+## Értesítések beállítása (egyszer, kb. 10 perc)
+
+Az e-maileket egy ingyenes Google Apps Script küldi a te Gmail-fiókodból:
+- **neked:** amikor egy pár befejez egy fejezetet vagy a teljes segédletet, és amikor válaszol a megjegyzésedre;
+- **a párnak:** amikor megjegyzést írsz neki, amikor 14 napja nem nyitotta meg a segédletet, és amikor 30 napon belül lesz az esküvő, de még legalább 5 teendője van (hetente legfeljebb egyszer).
+
+1. Menj a **script.google.com** oldalra (az `eskuvo.popovicsgyorgy@gmail.com` fiókkal) → **Új projekt**. Bal fent nevezd el: `Segédlet értesítések`.
+2. Töröld ki a szerkesztőben lévő kódot, és másold be az [`ertesites/Code.gs`](ertesites/Code.gs) teljes tartalmát. Mentés (floppy ikon).
+3. A felső sávban a függvényválasztóban válaszd a **`beallitas`** függvényt, és nyomd meg a **Futtatás** gombot.
+   - Megjelenik az engedélykérés: *Engedélyek áttekintése* → válaszd a fiókodat → *Speciális* → *Ugrás a(z) Segédlet értesítések projektre (nem biztonságos)* → *Engedélyezés*. (Ez a saját szkripted, ezért írja ki, hogy nincs ellenőrizve.)
+   - Pár másodperc múlva kapsz egy próba e-mailt: „az értesítések be vannak kapcsolva”.
+4. Jobb fent **Telepítés → Új telepítés** → fogaskerék: **Webalkalmazás** → *Végrehajtás mint:* **Én** → *Hozzáférés:* **Bárki** → **Telepítés**.
+5. Másold ki a **webalkalmazás URL-t** (`https://script.google.com/macros/s/…/exec`), és küldd el nekem, vagy írd be a [`config.js`](config.js) `ertesitesUrl: ''` idézőjelei közé.
+
+Ha később módosul a kód: *Telepítés → Telepítések kezelése → ceruza → Verzió: Új verzió → Telepítés* (így az URL nem változik).
 
 ## Kérdések szerkesztése
 

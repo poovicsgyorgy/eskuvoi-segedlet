@@ -53,7 +53,9 @@
         create: function (kod, data) { return F.setDoc(ref(kod), data); },
         remove: function (kod) { return F.deleteDoc(ref(kod)); },
         resetMembers: function (kod) { return F.updateDoc(ref(kod), { tagok: [], tagEmailek: [] }); },
-        now: function () { return F.serverTimestamp(); }
+        now: function () { return F.serverTimestamp(); },
+        token: function () { return auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve(''); },
+        torolMezo: function (kod, path) { var o = {}; o[path] = F.deleteField(); return F.updateDoc(ref(kod), o); }
       };
     });
   };

@@ -62,7 +62,7 @@
       allapot('Frissítés…');
       fb.all().then(function (list) {
         parok = list.map(function (d) {
-          return { p: d.p, nev: d.nev, datum: d.datum, kesz: d.kesz || 0, osszes: d.osszes || OSSZES, mentve: d.frissitve, tagok: d.tagEmailek || [], valaszok: d.valaszok || {} };
+          return { p: d.p, nev: d.nev, datum: d.datum, kesz: d.kesz || 0, osszes: d.osszes || OSSZES, mentve: d.frissitve, tagok: d.tagEmailek || [], valaszok: d.valaszok || {}, megj: d.megjegyzesek || {} };
         });
         rajz(); allapot('Frissítve: ' + new Date().toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }));
       }, function (e) { allapot(e && e.code === 'permission-denied' ? 'Ehhez a fiókhoz nincs ceremóniamesteri jogosultság (lásd firestore.rules).' : 'Nem sikerült betölteni: ' + (e.code || e.message)); });
@@ -112,7 +112,9 @@
     $('lista').innerHTML = parok.map(function (p) {
       var o = p.osszes || OSSZES;
       var hal = p.kesz != null ? p.kesz + ' / ' + o + ' (' + Math.round(p.kesz / o * 100) + '%)' : (vanSzolg || FBM ? '—' : 'nincs bekötve');
-      var tag = FBM ? '<div class="small" style="margin-top:2px">' + (p.tagok && p.tagok.length ? esc(p.tagok.join(', ')) : 'Még senki nem lépett be') + '</div>' : '';
+      var mi = FBM ? megjInfo(p) : null;
+      var tag = FBM ? '<div class="small" style="margin-top:2px">' + (p.tagok && p.tagok.length ? esc(p.tagok.join(', ')) : 'Még senki nem lépett be') + '</div>' +
+        (mi.db ? '<div class="small" style="margin-top:2px">' + mi.db + ' megjegyzés' + (mi.uj ? ' · <b style="color:var(--blushink)">' + mi.uj + ' új válasz a pártól</b>' : '') + '</div>' : '') : '';
       return '<tr><td><b>' + esc(p.nev) + '</b>' + tag + '</td><td data-l="Esküvő">' + esc(p.datum || '—') + '</td><td class="num" data-l="Haladás">' + hal + '</td><td data-l="Utolsó mentés">' + datumSzoveg(p.mentve) + '</td>' +
         '<td><div style="display:flex;gap:6px;flex-wrap:wrap">' +
         '<button class="btn mini p" data-act="uzenet" data-p="' + esc(p.p) + '">Üzenet másolása</button>' +
@@ -131,7 +133,8 @@
       f.reszek.forEach(function (r) {
         r.kerdesek.forEach(function (q) {
           var v = (p.valaszok || {})[hash(f.cim + '|' + q)];
-          out.push({ f: f.cim, r: r.cim, q: q, a: v ? CIMKE[v.a] || '' : '', n: v ? v.n || '' : '', aKod: v ? v.a : '' });
+          var id = hash(f.cim + '|' + q), c = (p.megj || {})[id];
+          out.push({ id: id, f: f.cim, r: r.cim, q: q, a: v ? CIMKE[v.a] || '' : '', n: v ? v.n || '' : '', aKod: v ? v.a : '', m: c && c.s ? c.s : '', pv: v && v.r ? v.r : '' });
         });
       });
     });
@@ -139,31 +142,102 @@
   }
   function csv(p) {
     var c = function (x) { return '"' + String(x).replace(/"/g, '""') + '"'; };
-    return '﻿' + [['Fejezet', 'Rész', 'Kérdés', 'Válasz', 'Jegyzet']].concat(sorok(p).map(function (s) { return [s.f, s.r, s.q, s.a, s.n]; }))
+    return '﻿' + [['Fejezet', 'Rész', 'Kérdés', 'Válasz', 'Jegyzet', 'Megjegyzésed', 'A pár válasza']].concat(sorok(p).map(function (s) { return [s.f, s.r, s.q, s.a, s.n, s.m, s.pv]; }))
       .map(function (r) { return r.map(c).join(';'); }).join('\r\n');
   }
+  function ujValasz(p, id) {
+    var c = (p.megj || {})[id], v = (p.valaszok || {})[id];
+    return !!(c && c.s && v && v.rt && v.rt > (c.t || 0) && v.rt > (c.latta || 0));
+  }
+  function megjInfo(p) {
+    var ids = Object.keys(p.megj || {}).filter(function (id) { return p.megj[id] && p.megj[id].s; });
+    return { db: ids.length, uj: ids.filter(function (id) { return ujValasz(p, id); }).length };
+  }
+  function ertesitPart(p, kerdes, szoveg) {
+    if (!C.ertesitesUrl || !p.tagok || !p.tagok.length) return Promise.resolve(false);
+    return fb.token().then(function (token) {
+      return fetch(C.ertesitesUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({
+        action: 'megjegyzes', token: token, p: p.p, nev: p.nev, link: link(p), cimzettek: p.tagok, kerdes: kerdes, szoveg: szoveg }) });
+    }).then(function (r) { return r.json(); }).then(function (j) { return !!(j && j.ok); }, function () { return false; });
+  }
   function reszletek(p) {
-    var h = '', last = '';
-    sorok(p).forEach(function (s) {
-      if (!s.a) return;
-      if (s.f !== last) { last = s.f; h += '<h2 class="disp" style="font-size:24px;margin:18px 0 6px">' + esc(s.f) + '</h2>'; }
-      h += '<div style="display:flex;gap:10px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><div><div style="font-size:14px">' + esc(s.q) + '</div>' + (s.n ? '<div class="small" style="margin-top:2px">Jegyzet: ' + esc(s.n) + '</div>' : '') + '</div><span class="chip a-' + esc(s.aKod) + '" style="align-self:flex-start">' + esc(s.a) + '</span></div>';
-    });
-    if (!h) h = '<p class="small">Még nincs megválaszolt kérdés.</p>';
+    var szuro = 'mind', nyitott = null;
     var ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(40,25,10,.45);z-index:20;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:20px 12px';
-    ov.innerHTML = '<div class="card" role="dialog" aria-modal="true" aria-label="' + esc(p.nev) + ' válaszai" style="width:100%;max-width:760px">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><div class="disp" style="font-size:30px">' + esc(p.nev) + '</div><div class="small">' + (p.kesz || 0) + ' / ' + (p.osszes || OSSZES) + ' kérdés' + (p.datum ? ' · ' + esc(p.datum) : '') + '</div></div>' +
-      '<div style="display:flex;gap:8px"><button class="btn mini" data-x="csv">Letöltés (Excel)</button><button class="btn mini p" data-x="close">Bezárás</button></div></div>' + h + '</div>';
-    function zar() { ov.remove(); document.removeEventListener('keydown', k); }
+    var box = document.createElement('div');
+    box.className = 'card'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', (p.nev || '') + ' válaszai');
+    box.style.cssText = 'width:100%;max-width:780px';
+    ov.appendChild(box);
+    var latta = {};
+    Object.keys(p.megj || {}).forEach(function (id) { if (ujValasz(p, id)) latta['megjegyzesek.' + id + '.latta'] = Date.now(); });
+    function szerk(id, cimke) {
+      var c = (p.megj || {})[id] || {};
+      return '<div class="madmin"><label class="f">' + esc(cimke) + '<textarea data-m="' + id + '" rows="3">' + esc(c.s || '') + '</textarea></label>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn mini p" data-x="ment" data-id="' + id + '">Mentés és értesítés</button>' +
+        (c.s ? '<button class="btn mini danger" data-x="torol" data-id="' + id + '">Megjegyzés törlése</button>' : '') +
+        '<button class="btn mini" data-x="megse">Mégse</button></div></div>';
+    }
+    function megjNezet(id) {
+      var c = (p.megj || {})[id], v = (p.valaszok || {})[id] || {};
+      if (nyitott === id) return szerk(id, id === '_altalanos' ? 'Általános üzenet a párnak' : 'Megjegyzésed ehhez a kérdéshez');
+      var h = '';
+      if (c && c.s) h += '<div class="mshow"><b>Megjegyzésed:</b> ' + esc(c.s) + '</div>';
+      if (v.r) h += '<div class="mshow pr' + (ujValasz(p, id) ? ' uj' : '') + '"><b>A pár válasza' + (ujValasz(p, id) ? ' (új)' : '') + ':</b> ' + esc(v.r) + '</div>';
+      h += '<button class="btn mini" data-x="nyit" data-id="' + id + '">' + (c && c.s ? 'Megjegyzés szerkesztése' : 'Megjegyzés írása') + '</button>';
+      return h;
+    }
+    function epit() {
+      var szurok = [['mind', 'Mind'], ['meg_nem', 'Még nem'], ['folyamatban', 'Folyamatban'], ['kesz', 'Kész'], ['nem_rel', 'Nem releváns'], ['megj', 'Megjegyzéssel']];
+      var h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><div class="disp" style="font-size:30px">' + esc(p.nev) + '</div><div class="small">' + (p.kesz || 0) + ' / ' + (p.osszes || OSSZES) + ' kérdés' + (p.datum ? ' · ' + esc(p.datum) : '') + '</div></div>' +
+        '<div style="display:flex;gap:8px"><button class="btn mini" data-x="csv">Letöltés (Excel)</button><button class="btn mini p" data-x="close">Bezárás</button></div></div>';
+      h += '<div class="card" style="background:#fff;margin-top:12px"><div style="font-weight:700;margin-bottom:6px">Általános üzenet a párnak</div>' + megjNezet('_altalanos') + '</div>';
+      h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">' + szurok.map(function (x) { return '<button class="btn mini' + (szuro === x[0] ? ' p' : '') + '" data-x="szuro" data-s="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+      var last = '', db = 0;
+      sorok(p).forEach(function (s) {
+        if (!s.a) return;
+        var vanM = !!((p.megj || {})[s.id] && p.megj[s.id].s) || !!((p.valaszok || {})[s.id] || {}).r;
+        if (szuro === 'megj' ? !vanM : (szuro !== 'mind' && s.aKod !== szuro)) return;
+        db++;
+        if (s.f !== last) { last = s.f; h += '<h2 class="disp" style="font-size:24px;margin:18px 0 6px">' + esc(s.f) + '</h2>'; }
+        h += '<div style="padding:10px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px"><div style="display:flex;gap:10px;justify-content:space-between"><div><div style="font-size:14px">' + esc(s.q) + '</div>' + (s.n ? '<div class="small" style="margin-top:2px">Jegyzet: ' + esc(s.n) + '</div>' : '') + '</div><span class="chip a-' + esc(s.aKod) + '" style="align-self:flex-start">' + esc(s.a) + '</span></div>' + megjNezet(s.id) + '</div>';
+      });
+      if (!db) h += '<p class="small" style="margin-top:14px">Nincs ilyen válasz.</p>';
+      box.innerHTML = h;
+      var ta = box.querySelector('textarea[data-m]'); if (ta) ta.focus();
+    }
+    function zar() { ov.remove(); document.removeEventListener('keydown', k); frissit(); }
     function k(e) { if (e.key === 'Escape') zar(); }
     ov.addEventListener('click', function (e) {
-      var x = e.target.closest('[data-x]');
-      if (e.target === ov || (x && x.getAttribute('data-x') === 'close')) zar();
-      else if (x && x.getAttribute('data-x') === 'csv') letolt('segedlet-' + String(p.nev || p.p).replace(/[^\wáéíóöőúüűÁÉÍÓÖŐÚÜŰ]+/g, '-') + '.csv', csv(p), 'text/csv;charset=utf-8');
+      if (e.target === ov) { zar(); return; }
+      var x = e.target.closest('[data-x]'); if (!x) return;
+      var a = x.getAttribute('data-x'), id = x.getAttribute('data-id');
+      if (a === 'close') zar();
+      else if (a === 'csv') letolt('segedlet-' + String(p.nev || p.p).replace(/[^\wáéíóöőúüűÁÉÍÓÖŐÚÜŰ]+/g, '-') + '.csv', csv(p), 'text/csv;charset=utf-8');
+      else if (a === 'szuro') { szuro = x.getAttribute('data-s'); nyitott = null; epit(); }
+      else if (a === 'nyit') { nyitott = id; epit(); }
+      else if (a === 'megse') { nyitott = null; epit(); }
+      else if (a === 'ment') {
+        var txt = (box.querySelector('textarea[data-m="' + id + '"]').value || '').trim();
+        if (!txt) { toast('Írj be egy megjegyzést'); return; }
+        x.disabled = true;
+        var c = { s: txt, t: Date.now() }, f = {}; f['megjegyzesek.' + id] = c;
+        fb.update(p.p, f).then(function () {
+          p.megj = p.megj || {}; p.megj[id] = c; nyitott = null; epit();
+          var kerdes = id === '_altalanos' ? '' : (sorok(p).filter(function (s) { return s.id === id; })[0] || {}).q || '';
+          return ertesitPart(p, kerdes, txt).then(function (ok) {
+            toast(ok ? 'Elmentve, a pár e-mailt is kapott' : (C.ertesitesUrl ? 'Elmentve. Az e-mail most nem ment ki, de a pár az alkalmazásban látja.' : 'Elmentve – a pár az alkalmazásban látja'));
+          });
+        }, function (er) { x.disabled = false; toast('Hiba: ' + (er.code || er.message)); });
+      } else if (a === 'torol') {
+        fb.torolMezo(p.p, 'megjegyzesek.' + id).then(function () { delete p.megj[id]; nyitott = null; epit(); toast('Megjegyzés törölve'); }, function (er) { toast('Hiba: ' + (er.code || er.message)); });
+      }
     });
     document.addEventListener('keydown', k);
     document.body.appendChild(ov);
+    epit();
+    if (Object.keys(latta).length) fb.update(p.p, latta).then(function () {
+      Object.keys(latta).forEach(function (key) { var id = key.split('.')[1]; if (p.megj[id]) p.megj[id].latta = latta[key]; });
+    }, function () {});
   }
 
   /* ---------- műveletek ---------- */

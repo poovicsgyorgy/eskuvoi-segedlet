@@ -24,10 +24,14 @@
   $('sablon').addEventListener('input', function () { LS.set('segedlet-admin-sablon', $('sablon').value); });
 
   var base = location.href.split('#')[0].split('?')[0].replace(/admin\.html$/, '');
-  function link(p) { return base + '?p=' + encodeURIComponent(p.p) + '&n=' + encodeURIComponent(p.nev || '') + (p.datum ? '&d=' + encodeURIComponent(p.datum) : ''); }
+  function link(p) {
+    // Firebase módban a név és a dátum az adatbázisban van, ezért elég a kód.
+    if (FBM) return base + '?p=' + encodeURIComponent(p.p);
+    return base + '?p=' + encodeURIComponent(p.p) + '&n=' + encodeURIComponent(p.nev || '') + (p.datum ? '&d=' + encodeURIComponent(p.datum) : '');
+  }
   function uzenet(p) { return $('sablon').value.replace(/\{nev\}/g, p.nev).replace(/\{link\}/g, link(p)); }
   function ujKod() {
-    var abc = 'abcdefghjkmnpqrstuvwxyz23456789', a = new Uint32Array(12), s = '';
+    var abc = 'abcdefghjkmnpqrstuvwxyz23456789', a = new Uint32Array(8), s = '';
     crypto.getRandomValues(a); for (var i = 0; i < a.length; i++) s += abc[a[i] % abc.length]; return s;
   }
   function mentes() { if (!FBM) LS.set('segedlet-admin-parok', parok); }
